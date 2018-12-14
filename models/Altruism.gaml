@@ -10,13 +10,33 @@ model Altruism
 /* Insert your model definition here */
 
 global {
-	geometry shape <- envelope(square(500));
+	file shape_file_walls <- file("../includes/shape.shp");
+	geometry shape <- envelope(shape_file_walls);
 	init{
+		create walls from:shape_file_walls;
 		create spawn_point{
-			p <- {100,100};
+			p <- {0.3,0.35000};
 			location <- p;
 		}
-		create sources number:5;
+		/*create sources number:5 {
+			p <- {rnd(100,475), rnd(100,475)};
+			location <- p;
+		}*/
+		create sources {
+			location <- {0.25, 1.05};
+		}
+		create sources {
+			location <- {0.6, 1.25};
+		}
+		create sources {
+			location <- {1.45, 0.3};
+		}
+		create sources {
+			location <- {1.65, 1.0};
+		}
+		create sources {
+			location <- {1.3, 1.3};
+		}
 		list<spawn_point> sp <- list<spawn_point>(spawn_point);
 		list<sources> sour <- list<sources>(sources);
 		create alt_agent number:50 {
@@ -27,6 +47,7 @@ global {
 		}
 		
 		
+		
 	}
 }
 
@@ -34,7 +55,7 @@ species spawn_point {
 	point p;
 	
 	aspect square{
-		draw square(50) color:rgb("gray");
+		draw square(0.25) color:rgb("gray");
 	}
 }
 
@@ -42,24 +63,22 @@ species sources {
 	point p;
 	
 	aspect square{
-		draw square(25) color:rgb("red");
+		draw square(0.15) color:rgb("red");
 	}
 }
 
 species walls {
-	aspect square{
-		draw square(25) color:rgb("gray");
+	aspect base{
+		draw shape color:rgb("blue");
 	}
 }
 
 species alt_agent skills:[moving]{
-	float speed <- 5.0 + rnd(5);
+	float speed <- 0.05 + rnd(0.005);
 	point the_target;
 	point spawning_point;
 	bool carry;
-	/*reflex move{
-		do wander;
-	}*/
+	agent target;
 	
 	reflex move when: the_target != nil {
 		if(carry = false){
@@ -77,17 +96,21 @@ species alt_agent skills:[moving]{
 		}
 	}
 	
+	
+	
 	aspect circle{
-		draw circle(5) color:rgb("green");
+		draw circle(0.04) color:rgb("green");
 	}
 }
 
 experiment main_experiment type:gui{
+	parameter "Shapefile for the walls:" var: shape_file_walls category: "GIS" ;
 	output{
-		display map {
+		display map{
 			species spawn_point aspect:square;
 			species sources aspect:square;
-			species alt_agent aspect:circle;	
+			species alt_agent aspect:circle;
+			species walls aspect:base;	
 		}
 	}	
 }
