@@ -17,7 +17,7 @@ global {
 	file shape_file_bounds <- file("../includes/bounds.shp");
 	geometry shape <- envelope(shape_file_bounds);
 	float step <- 10 #mn;
-	int nb_people <- 100;
+	int nb_people <- 20;
 	int current_hour update: (time / #hour) mod 24;
 	int min_work_start <- 6;
 	int max_work_start <- 8;
