@@ -5,6 +5,8 @@
 * Tags: Tag1, Tag2, TagN
 ***/
 
+/* https://github.com/gama-platform/gama/wiki/BasicProgrammingConceptsInGAML#loop*/
+
 model Altruism
 
 /* Insert your model definition here */
@@ -80,7 +82,124 @@ species alt_agent skills:[moving]{
 	bool carry;
 	agent target;
 	
+	float v<-0.0;
+	float satisfaction<-0.0;
+	float alpha<-0.5;
+	float pMax<-127;
+	float currentPos;
+	float oldPos;
+	bool blocked;
+	bool altruist;
+	string currentTask;
+	float targetAngle;
+	float distance_to_intercept <- 10.0;
+	float interactiveSatisfaction<-0.0;
+	float initialInsatisfaction<-0.0;
+	
+	reflex updateSatisfaction  {
+		do updateV;
+		do updateP;
+		do seeInteractiveSat;
+		do selectBestAction;
+	}
+	
+		action updateP{
+		satisfaction<-satisfaction+v;
+		if(satisfaction>pMax){
+			satisfaction<-pMax;
+		}
+		if(satisfaction<(-pMax)){
+			satisfaction<-(-pMax);
+		}
+	}
+	action updateV{
+		do isBlocked;
+		if(currentTask="move"){
+			if(blocked){
+				v<-(-1.5);
+			}
+			else{
+				v<-0.5+cos(targetAngle);
+			}
+		}
+	}
+	
+	action isBlocked{
+		if(currentTask="move"){
+			if(currentPos=oldPos){
+				blocked<-true;
+			}
+		}
+		else{
+			blocked<-false;
+		}
+	}
+	
+	action selectBestAction{
+		if(altruist){
+			do dropOutTask;
+		}
+		else{
+			if(satisfaction>=0){
+				do keepTask;
+			}
+			else{
+				do dropOutTask;
+			}
+		}
+	}
+	
+	action seeInteractiveSat {
+		if (interactiveSatisfaction>satisfaction){
+			altruist<-true;
+		}
+		else {
+			altruist<-false;
+		}
+	}
+	
+	
+	reflex spreadSatisfaction{
+		float spreadSat<-0.0;
+		if(altruist){
+			spreadSat<-interactiveSatisfaction;
+		}
+		else{
+			spreadSat<-self.satisfaction;
+		}
+		ask alt_agent at_distance(distance_to_intercept) {
+			if(alpha*abs(spreadSat) > (1-alpha)*abs(myself.satisfaction)){
+				if(myself.interactiveSatisfaction< alpha*abs(self.satisfaction)){
+					myself.interactiveSatisfaction<-spreadSat*alpha;
+				}
+			}
+		}
+	}
+
+	
+	action keepTask{
+		if(currentTask="move"){
+			do moveForward;
+		}
+	}
+	
+	action dropOutTask{
+		if(currentTask="move"){
+			do moveBackward;
+		}
+	}
+	
+	action moveForward{
+		
+	}
+	
+	action moveBackward{
+		
+	}
+	
+	
 	reflex move when: the_target != nil {
+		currentTask<-"move";
 		if(carry = false){
 			path p <- self goto[target::the_target, return_path:: true];
 		}
