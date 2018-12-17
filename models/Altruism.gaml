@@ -5,67 +5,72 @@
 * Tags: Tag1, Tag2, TagN
 ***/
 
-/* https://github.com/gama-platform/gama/wiki/BasicProgrammingConceptsInGAML#loop*/
-
 model Altruism
 
 /* Insert your model definition here */
 
 global {
-	file shape_file_walls <- file("../includes/shape.shp");
+	file shape_file_walls <- file("../includes/please4.shp");
 	geometry shape <- envelope(shape_file_walls);
+	float max_power <- 10.0;
+	float max_ressources <- 100.0;
+	spawn_point spawn;
+	sources source;
+	
+	int initNumberOfAgents <- 5;
+	int numberOfSources <- 1;
+	int nbAgents -> {length(alt_agent)};
+	
 	init{
 		create walls from:shape_file_walls;
 		create spawn_point{
-			p <- {0.3,0.35000};
-			location <- p;
-		}
-		/*create sources number:5 {
-			p <- {rnd(100,475), rnd(100,475)};
-			location <- p;
-		}*/
-		create sources {
-			location <- {0.25, 1.05};
+			spawn <- self;
+			location <- {0.3,0.4};
+			current_riches <-0.0;
 		}
 		create sources {
-			location <- {0.6, 1.25};
+			source <- self;
+			location <- {1.1, 0.4};
+			current_ressources <- max_ressources;
 		}
-		create sources {
-			location <- {1.45, 0.3};
-		}
-		create sources {
-			location <- {1.65, 1.0};
-		}
-		create sources {
-			location <- {1.3, 1.3};
-		}
-		list<spawn_point> sp <- list<spawn_point>(spawn_point);
-		list<sources> sour <- list<sources>(sources);
-		create alt_agent number:50 {
-			location <-  any_location_in (one_of (sp));
-			the_target <- any_location_in (one_of (sour));
-			spawning_point <-  any_location_in (one_of (sp));
+
+		create alt_agent number:initNumberOfAgents {
+			location <-  spawn.location;
+			is_altruist <- false;
 			carry <- false;
-		}
-		
-		
-		
+			ready <- 0;
+			current_power <- max_power;
+		}			
+	}
+	
+	reflex end_simulation when: spawn.current_riches >= (numberOfSources * max_ressources){
+		do pause;
 	}
 }
 
 species spawn_point {
-	point p;
+	float current_riches;
 	
+	action add_ressources{
+		current_riches <- current_riches + 1;
+	}
+		
 	aspect square{
 		draw square(0.25) color:rgb("gray");
+		draw string(current_riches with_precision 2) size: 10 color: #black ;
 	}
 }
 
 species sources {
-	point p;
+	float current_ressources;
+	
+	action get_ressources{
+		current_ressources <- current_ressources - 1;
+	}
 	
 	aspect square{
 		draw square(0.15) color:rgb("red");
+		draw string(current_ressources with_precision 2) size: 5 color: #black ;
 	}
 }
 
@@ -75,13 +80,13 @@ species walls {
 	}
 }
 
-species alt_agent skills:[moving]{
-	float speed <- 0.05 + rnd(0.005);
-	point the_target;
-	point spawning_point;
+species alt_agent skills:[moving] control:simple_bdi{
+	float speed <- 0.03 + rnd(0.005);
+	int ready;
 	bool carry;
-	agent target;
-	
+	bool is_altruist;
+	float current_power;
+
 	float v<-0.0;
 	float satisfaction<-0.0;
 	float alpha<-0.5;
@@ -197,28 +202,117 @@ species alt_agent skills:[moving]{
 		
 	}
 	
-	
-	reflex move when: the_target != nil {
-		currentTask<-"move";
+
+
+	reflex findSource{
+		if(flip(0.01)){
+			ready <- 1;
+		}
+	}
+	reflex move when: ready != 0 {
 		if(carry = false){
-			path p <- self goto[target::the_target, return_path:: true];
+			path p <- self goto[target::source, return_path:: true];
 		}
 		else{
-			path p <- self goto[target::spawning_point, return_path:: true];
+			path p <- self goto[target::spawn, return_path:: true];
 		}
 		
-		if(location = the_target){
+		if(location = source.location){
 			carry <- true;
+			ask sources at_distance 0.05{
+				do get_ressources;
+			}
 		}
-		else if(location = spawning_point){
+		else if(location = spawn.location){
 			carry <- false;
+			current_power <- max_power;
+			ask spawn_point{
+				do add_ressources;
+			}
+		}
+		else{
+			current_power <- current_power - 0.1;
 		}
 	}
 	
+	reflex out_of_energy when:current_power <= 0{
+		do die;
+	}
 	
+	perceive target:walls in:0.04{
+			point wp <- location;
+			walls w <- self;
+			//highlight(w);
+			ask myself{
+				if(wp.y < location.y){
+					point p <- {location.x , location.y +0.1};
+					do goto target: p ;
+				}
+				else if(wp.y >= location.y){
+					point p <- {location.x , location.y -0.1};
+					do goto target: p ;
+				}
+		}
+	}
 	
+	perceive target:alt_agent in:0.04 when: sum(alt_agent collect each.ready) >= 2{
+		point ap <- location;
+		if(self != myself and self.location != spawn.location and myself.location != spawn.location){
+			ask myself{
+				if(is_altruist){
+					if(ap.x < location.x){
+						point p <- {location.x + 0.2, location.y+0.2};
+						do goto target: p ;
+					}
+					else if(ap.x >= location.x){
+						point p <- {location.x - 0.2, location.y -0.2};
+						do goto target: p ;
+					}
+					is_altruist <- false;
+				}
+				else{
+					if(ap.x < location.x){
+						point p <- {location.x + 0.2, location.y};
+						do goto target: p ;
+					}
+					else if(ap.x >= location.x){
+						point p <- {location.x - 0.2, location.y};
+						do goto target: p ;
+					}
+					if(flip(0.3)){
+						is_altruist <- true;
+						current_power <- current_power - 1.0;
+					}
+				}
+				/*if(ap.x < location.x){
+					point p <- {location.x + 0.1, location.y};
+					do goto target: p ;
+				}
+				else if(ap.x >= location.x){
+					point p <- {location.x - 0.1, location.y};
+					do goto target: p ;
+				}
+				if(ap.x < location.x){
+					point p <- {location.x + 0.1, location.y+0.2};
+					do goto target: p ;
+				}
+				else if(ap.x >= location.x){
+					point p <- {location.x - 0.1, location.y -0.2};
+					do goto target: p ;
+				}*/
+			}
+		}
+		
+	}
+	
+	reflex turn_back when:is_altruist = true {
+		
+	}
+		
 	aspect circle{
-		draw circle(0.04) color:rgb("green");
+		draw circle(0.03) color:rgb("green");
+		draw 0.005 around circle(0.04);
+		draw string(current_power with_precision 2) size: 3 color: #black ;
 	}
 }
 
@@ -231,5 +325,6 @@ experiment main_experiment type:gui{
 			species alt_agent aspect:circle;
 			species walls aspect:base;	
 		}
+		monitor "Number of agents" value: nbAgents ;	
 	}	
 }
