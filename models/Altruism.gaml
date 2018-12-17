@@ -36,10 +36,10 @@ global {
 
 		create alt_agent number:initNumberOfAgents {
 			location <-  spawn.location;
-			is_altruist <- false;
+			altruist <- false;
 			carry <- false;
 			ready <- 0;
-			current_power <- max_power;
+			satisfaction <- 0.0;
 		}			
 	}
 	
@@ -84,8 +84,6 @@ species alt_agent skills:[moving] control:simple_bdi{
 	float speed <- 0.03 + rnd(0.005);
 	int ready;
 	bool carry;
-	bool is_altruist;
-	float current_power;
 
 	float v<-0.0;
 	float satisfaction<-0.0;
@@ -102,13 +100,18 @@ species alt_agent skills:[moving] control:simple_bdi{
 	float initialInsatisfaction<-0.0;
 	
 	reflex updateSatisfaction  {
+		do resetBlocked;
 		do updateV;
 		do updateP;
 		do seeInteractiveSat;
 		do selectBestAction;
 	}
 	
-		action updateP{
+	action resetBlocked{
+		blocked<-false;
+	}
+	
+	action updateP{
 		satisfaction<-satisfaction+v;
 		if(satisfaction>pMax){
 			satisfaction<-pMax;
@@ -118,17 +121,16 @@ species alt_agent skills:[moving] control:simple_bdi{
 		}
 	}
 	action updateV{
-		do isBlocked;
-		if(currentTask="move"){
-			if(blocked){
-				v<-(-1.5);
-			}
-			else{
-				v<-0.5+cos(targetAngle);
-			}
+		//do isBlocked;
+		if(blocked){
+			v<-(-1.5);
+		}
+		else{
+			v<-0.5+cos(targetAngle);
 		}
 	}
 	
+	/* 
 	action isBlocked{
 		if(currentTask="move"){
 			if(currentPos=oldPos){
@@ -138,7 +140,7 @@ species alt_agent skills:[moving] control:simple_bdi{
 		else{
 			blocked<-false;
 		}
-	}
+	}*/
 	
 	action selectBestAction{
 		if(altruist){
@@ -183,23 +185,30 @@ species alt_agent skills:[moving] control:simple_bdi{
 
 	
 	action keepTask{
-		if(currentTask="move"){
-			do moveForward;
-		}
+		do moveForward;
 	}
 	
 	action dropOutTask{
-		if(currentTask="move"){
-			do moveBackward;
-		}
+		do moveBackward;
 	}
 	
 	action moveForward{
+		if(carry = false){
+			path p <- self goto[target::source, return_path:: true];
+		}
+		else{
+			path p <- self goto[target::spawn, return_path:: true];
+		}
 		
 	}
 	
 	action moveBackward{
-		
+		if(carry = false){
+			path p <- self goto[target::source, return_path:: true];
+		}
+		else{
+			path p <- self goto[target::spawn, return_path:: true];
+		}
 	}
 	
 
@@ -209,14 +218,7 @@ species alt_agent skills:[moving] control:simple_bdi{
 			ready <- 1;
 		}
 	}
-	reflex move when: ready != 0 {
-		if(carry = false){
-			path p <- self goto[target::source, return_path:: true];
-		}
-		else{
-			path p <- self goto[target::spawn, return_path:: true];
-		}
-		
+	reflex updateGoals when: ready != 0 {
 		if(location = source.location){
 			carry <- true;
 			ask sources at_distance 0.05{
@@ -225,33 +227,30 @@ species alt_agent skills:[moving] control:simple_bdi{
 		}
 		else if(location = spawn.location){
 			carry <- false;
-			current_power <- max_power;
 			ask spawn_point{
 				do add_ressources;
 			}
 		}
-		else{
-			current_power <- current_power - 0.1;
-		}
 	}
 	
-	reflex out_of_energy when:current_power <= 0{
-		do die;
-	}
+
 	
 	perceive target:walls in:0.04{
-			point wp <- location;
-			walls w <- self;
-			//highlight(w);
-			ask myself{
-				if(wp.y < location.y){
-					point p <- {location.x , location.y +0.1};
-					do goto target: p ;
-				}
-				else if(wp.y >= location.y){
-					point p <- {location.x , location.y -0.1};
-					do goto target: p ;
-				}
+		point wp <- location;
+		walls w <- self;
+		//highlight(w);
+		ask myself{
+			blocked<-true;
+			/* 
+			if(wp.y < location.y){
+				point p <- {location.x , location.y +0.1};
+				do goto target: p ;
+			}
+			else if(wp.y >= location.y){
+				point p <- {location.x , location.y -0.1};
+				do goto target: p ;
+			}
+			*/
 		}
 	}
 	
@@ -259,6 +258,8 @@ species alt_agent skills:[moving] control:simple_bdi{
 		point ap <- location;
 		if(self != myself and self.location != spawn.location and myself.location != spawn.location){
 			ask myself{
+				blocked<-true;
+				/* 
 				if(is_altruist){
 					if(ap.x < location.x){
 						point p <- {location.x + 0.2, location.y+0.2};
@@ -284,35 +285,17 @@ species alt_agent skills:[moving] control:simple_bdi{
 						current_power <- current_power - 1.0;
 					}
 				}
-				/*if(ap.x < location.x){
-					point p <- {location.x + 0.1, location.y};
-					do goto target: p ;
-				}
-				else if(ap.x >= location.x){
-					point p <- {location.x - 0.1, location.y};
-					do goto target: p ;
-				}
-				if(ap.x < location.x){
-					point p <- {location.x + 0.1, location.y+0.2};
-					do goto target: p ;
-				}
-				else if(ap.x >= location.x){
-					point p <- {location.x - 0.1, location.y -0.2};
-					do goto target: p ;
-				}*/
+				*/
 			}
 		}
 		
 	}
 	
-	reflex turn_back when:is_altruist = true {
-		
-	}
 		
 	aspect circle{
 		draw circle(0.03) color:rgb("green");
 		draw 0.005 around circle(0.04);
-		draw string(current_power with_precision 2) size: 3 color: #black ;
+		draw string(satisfaction with_precision 2) size: 3 color: #black ;
 	}
 }
 
