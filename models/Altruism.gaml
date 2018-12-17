@@ -56,7 +56,7 @@ species spawn_point {
 	}
 		
 	aspect square{
-		draw square(0.25) color:rgb("gray");
+		draw square(0.25) color:rgb("blue");
 		draw string(current_riches with_precision 2) size: 10 color: #black ;
 	}
 }
@@ -76,7 +76,7 @@ species sources {
 
 species walls {
 	aspect base{
-		draw shape color:rgb("blue");
+		draw shape color:rgb("gray");
 	}
 }
 
@@ -88,7 +88,7 @@ species alt_agent skills:[moving] control:simple_bdi{
 	float v<-0.0;
 	float satisfaction<-0.0;
 	float alpha<-0.5;
-	float pMax<-127;
+	float pMax<-127.0;
 	float currentPos;
 	float oldPos;
 	bool blocked;
@@ -99,7 +99,7 @@ species alt_agent skills:[moving] control:simple_bdi{
 	float interactiveSatisfaction<-0.0;
 	float initialInsatisfaction<-0.0;
 	
-	reflex updateSatisfaction  {
+	reflex updateSatisfaction when: ready != 0 {
 		do resetBlocked;
 		do updateV;
 		do updateP;
@@ -154,7 +154,7 @@ species alt_agent skills:[moving] control:simple_bdi{
 	}
 	
 	
-	reflex spreadSatisfaction{
+	reflex spreadSatisfaction when: ready != 0{
 		float spreadSat<-0.0;
 		if(altruist){
 			spreadSat<-interactiveSatisfaction;
@@ -230,54 +230,25 @@ species alt_agent skills:[moving] control:simple_bdi{
 		point wp <- location;
 		walls w <- self;
 		//highlight(w);
-		ask myself{
-			blocked<-true;
-			/* 
-			if(wp.y < location.y){
-				point p <- {location.x , location.y +0.1};
-				do goto target: p ;
-			}
-			else if(wp.y >= location.y){
-				point p <- {location.x , location.y -0.1};
-				do goto target: p ;
-			}
-			*/
+		if(myself.carry = false and (self.location.x > myself.location.x)){
+			myself.blocked <- true;
+		}
+		else if(myself.carry = true and (self.location.x < myself.location.x)){
+			myself.blocked <- true;
 		}
 	}
 	
 	perceive target:alt_agent in:0.04 when: sum(alt_agent collect each.ready) >= 2{
-		point ap <- location;
 		if(self != myself and self.location != spawn.location and myself.location != spawn.location){
-			ask myself{
-				blocked<-true;
-				/* 
-				if(is_altruist){
-					if(ap.x < location.x){
-						point p <- {location.x + 0.2, location.y+0.2};
-						do goto target: p ;
-					}
-					else if(ap.x >= location.x){
-						point p <- {location.x - 0.2, location.y -0.2};
-						do goto target: p ;
-					}
-					is_altruist <- false;
-				}
-				else{
-					if(ap.x < location.x){
-						point p <- {location.x + 0.2, location.y};
-						do goto target: p ;
-					}
-					else if(ap.x >= location.x){
-						point p <- {location.x - 0.2, location.y};
-						do goto target: p ;
-					}
-					if(flip(0.3)){
-						is_altruist <- true;
-						current_power <- current_power - 1.0;
-					}
-				}
-				*/
+			if((self.carry = true and myself.carry = false) and (self.location.x > myself.location.x)){
+				myself.blocked <- true;
+				do goto target:{myself.location.x + 0.2, myself.location.y};
 			}
+			else if((self.carry = false and myself.carry = true) and (self.location.x < myself.location.x)){
+				myself.blocked <- true;
+				do goto target:{myself.location.x - 0.2, myself.location.y};
+			}
+			
 		}
 		
 	}
