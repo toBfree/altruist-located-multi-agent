@@ -94,7 +94,7 @@ species alt_agent skills:[moving] control:simple_bdi{
 	bool blocked;
 	bool altruist;
 	string currentTask;
-	float targetAngle;
+	int targetAngle;
 	float distance_to_intercept <- 10.0;
 	float interactiveSatisfaction<-0.0;
 	float initialInsatisfaction<-0.0;
@@ -129,19 +129,7 @@ species alt_agent skills:[moving] control:simple_bdi{
 			v<-0.5+cos(targetAngle);
 		}
 	}
-	
-	/* 
-	action isBlocked{
-		if(currentTask="move"){
-			if(currentPos=oldPos){
-				blocked<-true;
-			}
-		}
-		else{
-			blocked<-false;
-		}
-	}*/
-	
+		
 	action selectBestAction{
 		if(altruist){
 			do dropOutTask;
@@ -183,7 +171,6 @@ species alt_agent skills:[moving] control:simple_bdi{
 		}
 	}
 
-	
 	action keepTask{
 		do moveForward;
 	}
@@ -193,7 +180,10 @@ species alt_agent skills:[moving] control:simple_bdi{
 	}
 	
 	action moveForward{
+		targetAngle<-0;
+		point backWardPoint <- location;
 		if(carry = false){
+			backWardPoint<-{0,0};
 			path p <- self goto[target::source, return_path:: true];
 		}
 		else{
@@ -203,11 +193,12 @@ species alt_agent skills:[moving] control:simple_bdi{
 	}
 	
 	action moveBackward{
+		targetAngle<-180;
 		if(carry = false){
-			path p <- self goto[target::source, return_path:: true];
+			path p <- self goto[target::spawn, return_path:: true];
 		}
 		else{
-			path p <- self goto[target::spawn, return_path:: true];
+			path p <- self goto[target::source, return_path:: true];
 		}
 	}
 	
