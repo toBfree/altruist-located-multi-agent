@@ -12,12 +12,11 @@ model Altruism
 global {
 	file shape_file_walls <- file("../includes/please4.shp");
 	geometry shape <- envelope(shape_file_walls);
-	float max_power <- 10.0;
 	float max_ressources <- 100.0;
 	spawn_point spawn;
 	sources source;
 	
-	int initNumberOfAgents <- 5;
+	int initNumberOfAgents <- 2;
 	int numberOfSources <- 1;
 	int nbAgents -> {length(alt_agent)};
 	
@@ -81,7 +80,6 @@ species walls {
 }
 
 species alt_agent skills:[moving] control:simple_bdi{
-	float speed <- 0.03 + rnd(0.005);
 	int ready;
 	bool carry;
 
@@ -89,29 +87,48 @@ species alt_agent skills:[moving] control:simple_bdi{
 	float satisfaction<-0.0;
 	float alpha<-0.5;
 	float pMax<-127.0;
-	float currentPos;
-	float oldPos;
 	bool blocked;
 	bool altruist;
-	string currentTask;
 	int targetAngle;
-	float distance_to_intercept <- 10.0;
+	float distance_to_intercept <- 0.04;
 	float interactiveSatisfaction<-0.0;
+	bool gotInteractiveSat<-false;
 	float initialInsatisfaction<-0.0;
+	bool satPassedInNeg<-false;
+	bool boss<-false;
+	
 	
 	reflex updateSatisfaction when: ready != 0 {
-		do resetBlocked;
+		do collision;
+		write "\n";
+		write name+" blocked="+blocked;
 		do updateV;
 		do updateP;
+		do updateInitialInsat;
+		do spreadSatisfaction;
 		do seeInteractiveSat;
 		do selectBestAction;
+		do resetBlocked;
 	}
 	
+
+	action updateInitialInsat{
+		if(satisfaction>0){
+			initialInsatisfaction<-0.0;
+		}
+		if(satPassedInNeg and satisfaction<interactiveSatisfaction){
+			initialInsatisfaction<-satisfaction;
+			satPassedInNeg<-false;
+		}
+	}	
+	
 	action resetBlocked{
+		write name+" in blocked";
 		blocked<-false;
 	}
 	
 	action updateP{
+		do updatePusher;
 		satisfaction<-satisfaction+v;
 		if(satisfaction>pMax){
 			satisfaction<-pMax;
@@ -119,7 +136,16 @@ species alt_agent skills:[moving] control:simple_bdi{
 		if(satisfaction<(-pMax)){
 			satisfaction<-(-pMax);
 		}
+
 	}
+	
+	action updatePusher{
+		if(satisfaction>=0 and satPassedInNeg=false and satisfaction+v<0){
+			satPassedInNeg<-true;
+		}
+	}
+	
+	
 	action updateV{
 		//do isBlocked;
 		if(blocked){
@@ -131,74 +157,122 @@ species alt_agent skills:[moving] control:simple_bdi{
 	}
 		
 	action selectBestAction{
+		write name+" altuiste="+altruist;
 		if(altruist){
 			do dropOutTask;
+			write name+"="+altruist;
 		}
 		else{
 			if(satisfaction>=0){
 				do keepTask;
 			}
 			else{
-				do dropOutTask;
+				if(v>0){
+					do keepTask;
+				}
+				else{
+					if(flip(0.6)){
+						do keepTask;
+					}
+					else{
+						do dropOutTask;
+					}
+				}
 			}
 		}
 	}
 	
 	action seeInteractiveSat {
-		if (interactiveSatisfaction>satisfaction){
+		write name+"interactiveSatisfaction="+interactiveSatisfaction;
+		write name+"interactiveSatisfaction="+gotInteractiveSat;
+		if (gotInteractiveSat and interactiveSatisfaction<satisfaction){
 			altruist<-true;
 		}
 		else {
 			altruist<-false;
 		}
 	}
-	
-	
-	reflex spreadSatisfaction when: ready != 0{
-		float spreadSat<-0.0;
-		if(altruist){
-			spreadSat<-interactiveSatisfaction;
-		}
-		else{
-			spreadSat<-self.satisfaction;
-		}
-		ask alt_agent at_distance(distance_to_intercept) {
-			if(alpha*abs(spreadSat) > (1-alpha)*abs(myself.satisfaction)){
-				if(myself.interactiveSatisfaction< alpha*abs(self.satisfaction)){
-					myself.interactiveSatisfaction<-spreadSat*alpha;
-				}
-			}
-		}
-	}
 
 	action keepTask{
 		do moveForward;
+		write name+" moveForward";
 	}
 	
 	action dropOutTask{
 		do moveBackward;
+		write name+" moveBAck";
 	}
 	
 	action moveForward{
+		//write name + " moveForward";
 		targetAngle<-0;
-		point backWardPoint <- location;
+		//point backWardPoint <- location;
 		if(carry = false){
-			backWardPoint<-{0,0};
-			path p <- self goto[target::source, return_path:: true];
+			do goto target:source.location;
+			//path p <- self goto[target::source, return_path:: true];
 		}
 		else{
-			path p <- self goto[target::spawn, return_path:: true];
+			do goto target:spawn.location;
+			//path p <- self goto[target::spawn, return_path:: true];
 		}
 		
 	}
 	
 	action moveBackward{
+		//write name+" moveBackward";
 		targetAngle<-180;
 		if(carry = false){
-			path p <- self goto[target::spawn, return_path:: true];
+			do goto target:spawn.location;
+			//path p <- self goto[target::spawn, return_path:: true];
 		}
 		else{
-			path p <- self goto[target::source, return_path:: true];
+			do goto target:source.location;
+			//path p <- self goto[target::source, return_path:: true];
+		}
+	}
+	
+	
+	action spreadSatisfaction{
+		gotInteractiveSat<-false;
+		if(boss=false){
+			interactiveSatisfaction<-0.0;
+		}
+		ask alt_agent at_distance(distance_to_intercept) {
+			if(self != myself and alpha*myself.initialInsatisfaction < (1-alpha)*self.satisfaction){
+				if(abs(self.interactiveSatisfaction)< alpha*abs(myself.initialInsatisfaction )){
+					self.interactiveSatisfaction<-myself.initialInsatisfaction *0.8;
+					self.gotInteractiveSat<-true;
+					self.boss<-false;
+				}
+			}
+		}
+	}
+	
+	
+	action collision{
+		ask walls at_distance(distance_to_intercept) {
+			if(myself.carry = false and (self.location.x > myself.location.x)){
+				myself.blocked <- true;
+			}
+			else if(myself.carry = true and (self.location.x < myself.location.x)){
+				myself.blocked <- true;
+			}
+		}
+		
+		ask alt_agent at_distance(distance_to_intercept){
+			if(self != myself and self.location != spawn.location and myself.location != spawn.location){
+				if((self.carry = true and myself.carry = false) and (self.location.x > myself.location.x)){
+					myself.blocked <- true;
+					//write name+"in perceive_alt";
+					do goto target:{myself.location.x + 0.2, myself.location.y};
+				}
+				else if((self.carry = false and myself.carry = true) and (self.location.x < myself.location.x)){
+					myself.blocked <- true;
+					do goto target:{myself.location.x - 0.2, myself.location.y};
+				}
+				
+			}
+			
 		}
 	}
 	
@@ -225,34 +299,8 @@ species alt_agent skills:[moving] control:simple_bdi{
 	}
 	
 
-	
-	perceive target:walls in:0.04{
-		point wp <- location;
-		walls w <- self;
-		//highlight(w);
-		if(myself.carry = false and (self.location.x > myself.location.x)){
-			myself.blocked <- true;
-		}
-		else if(myself.carry = true and (self.location.x < myself.location.x)){
-			myself.blocked <- true;
-		}
-	}
-	
-	perceive target:alt_agent in:0.04 when: sum(alt_agent collect each.ready) >= 2{
-		if(self != myself and self.location != spawn.location and myself.location != spawn.location){
-			if((self.carry = true and myself.carry = false) and (self.location.x > myself.location.x)){
-				myself.blocked <- true;
-				do goto target:{myself.location.x + 0.2, myself.location.y};
-			}
-			else if((self.carry = false and myself.carry = true) and (self.location.x < myself.location.x)){
-				myself.blocked <- true;
-				do goto target:{myself.location.x - 0.2, myself.location.y};
-			}
-			
-		}
+
 		
-	}
-	
 		
 	aspect circle{
 		draw circle(0.03) color:rgb("green");
