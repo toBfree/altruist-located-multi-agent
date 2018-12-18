@@ -80,6 +80,7 @@ species walls {
 }
 
 species alt_agent skills:[moving] control:simple_bdi{
+	float speed <- 0.03 + rnd(0.005);
 	int ready;
 	bool carry;
 
@@ -99,14 +100,18 @@ species alt_agent skills:[moving] control:simple_bdi{
 	
 	
 	reflex updateSatisfaction when: ready != 0 {
-		do collision;
 		write "\n";
+		do updateInitialInsat;
+		do collision;
+
 		write name+" blocked="+blocked;
+		write name+" satPassedInNeg="+satPassedInNeg;
+		write name+" boss="+boss;
 		do updateV;
 		do updateP;
-		do updateInitialInsat;
+
 		do spreadSatisfaction;
-		do seeInteractiveSat;
+		//do seeInteractiveSat;
 		do selectBestAction;
 		do resetBlocked;
 	}
@@ -116,18 +121,19 @@ species alt_agent skills:[moving] control:simple_bdi{
 		if(satisfaction>0){
 			initialInsatisfaction<-0.0;
 		}
-		if(satPassedInNeg and satisfaction<interactiveSatisfaction){
+		if(satPassedInNeg and satisfaction<interactiveSatisfaction and satisfaction<(-2)){
+			write name+" updateInitInsat=-5!!!!!";
 			initialInsatisfaction<-satisfaction;
 			satPassedInNeg<-false;
 		}
 	}	
 	
 	action resetBlocked{
-		write name+" in blocked";
 		blocked<-false;
 	}
 	
 	action updateP{
+		write name+" sat="+satisfaction;
 		do updatePusher;
 		satisfaction<-satisfaction+v;
 		if(satisfaction>pMax){
@@ -141,6 +147,7 @@ species alt_agent skills:[moving] control:simple_bdi{
 	
 	action updatePusher{
 		if(satisfaction>=0 and satPassedInNeg=false and satisfaction+v<0){
+			write name+" updatePusher";
 			satPassedInNeg<-true;
 		}
 	}
@@ -163,7 +170,7 @@ species alt_agent skills:[moving] control:simple_bdi{
 			write name+"="+altruist;
 		}
 		else{
-			if(satisfaction>=0){
+			if(satisfaction>(-15)){
 				do keepTask;
 			}
 			else{
@@ -183,10 +190,13 @@ species alt_agent skills:[moving] control:simple_bdi{
 	}
 	
 	action seeInteractiveSat {
+		write name+"InitialinteractiveSatisfaction="+initialInsatisfaction;
 		write name+"interactiveSatisfaction="+interactiveSatisfaction;
 		write name+"interactiveSatisfaction="+gotInteractiveSat;
 		if (gotInteractiveSat and interactiveSatisfaction<satisfaction){
+			write name+"altruist!!!!!!!!!";
 			altruist<-true;
+			gotInteractiveSat<-false;
 		}
 		else {
 			altruist<-false;
@@ -233,16 +243,22 @@ species alt_agent skills:[moving] control:simple_bdi{
 	
 	
 	action spreadSatisfaction{
-		gotInteractiveSat<-false;
-		if(boss=false){
+		/*/
+		if(boss=false and gotInteractiveSat=false){
 			interactiveSatisfaction<-0.0;
-		}
-		ask alt_agent at_distance(distance_to_intercept) {
-			if(self != myself and alpha*myself.initialInsatisfaction < (1-alpha)*self.satisfaction){
+		}*/
+		//altruist<-false;
+		gotInteractiveSat<-false;
+		ask alt_agent at_distance(0.1) {
+			if(self != myself and myself.initialInsatisfaction < self.satisfaction){
 				if(abs(self.interactiveSatisfaction)< alpha*abs(myself.initialInsatisfaction )){
+					write self.name+"in spread:!!!!!!!="+myself.initialInsatisfaction *0.8;
 					self.interactiveSatisfaction<-myself.initialInsatisfaction *0.8;
 					self.gotInteractiveSat<-true;
+					self.altruist<-true;
 					self.boss<-false;
+					myself.altruist<-false;
+					myself.boss<-true;
 				}
 			}
 		}
